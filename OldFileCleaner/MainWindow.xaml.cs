@@ -12,7 +12,6 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.IO;
-//using System.Threading;
 using System.Threading.Tasks;
 using System.Threading;
 
@@ -31,42 +30,69 @@ namespace OldFileCleaner
             }
         }
 
+        public string PatchStorage
+        {
+            get
+            {
+                return Directory.GetCurrentDirectory() + "\\Storage";
+            }
+        }
+
+        private string tamplate;
+
         public FileSystemWatcher fsw;
 
         public TaskScheduler ui;
 
         public MainWindow()
         {
+            //Инициализация директорий
+            if (!Directory.Exists("TempStorage"))
+            {
+                Directory.CreateDirectory("TempStorage");
+            }
+            if (!Directory.Exists("Storage"))
+            {
+                Directory.CreateDirectory("Storage");
+            }
+            //Инициализация и настройка FileSystemWatcher
             fsw = new FileSystemWatcher(PatchTempStorage);
             fsw.Filter = "";
             fsw.Created += Fsw_Created;
             fsw.NotifyFilter = NotifyFilters.FileName;
             fsw.EnableRaisingEvents = true;
 
-
-            if (!Directory.Exists("TempStorage"))
-            {
-                Directory.CreateDirectory("TempStorage");
-            }
-
-            if (!Directory.Exists("Storage"))
-            {
-                Directory.CreateDirectory("Storage");
-            }
-
             InitializeComponent();
+            //Контекст синхронизации для работы с UI елементами в UI потоке
             ui = TaskScheduler.FromCurrentSynchronizationContext();
-            
+            //Содержимое шаблонного файла
+            tamplate = "A\nB\nC";
         }
 
+        /// <summary>
+        /// Создание фалов
+        /// </summary>
         private void BCreateFiles_Click(object sender, RoutedEventArgs e)
         {
             try
             {
+                var random = new Random();
+                
                 using (FileStream fs = new FileStream(PatchTempStorage + "\\" + System.IO.Path.GetRandomFileName(), FileMode.CreateNew))
                 {
-                    var text = Encoding.Default.GetBytes("A\nB\nC");
-                    fs.Write(text, 0, text.Length);
+                    if (random.Next(0, 100) >49)
+                    {
+                        //Шаюлонный файл
+                        var text = Encoding.Default.GetBytes(tamplate);
+                        fs.Write(text, 0, text.Length);
+                    }
+                    else
+                    {
+                        //Случайный файл
+                        var text = Encoding.Default.GetBytes(System.Guid.NewGuid().ToString());
+                        fs.Write(text, 0, text.Length);
+                    }
+                    
                 }
             }
             catch (Exception ex)
@@ -75,61 +101,61 @@ namespace OldFileCleaner
             }
         }
 
-
+        /// <summary>
+        /// Событие создания файла
+        /// </summary>
         private void Fsw_Created(object sender, FileSystemEventArgs e)
         {
+            //Задача работы с файлами
             Task.Run(async () => 
             {
-                var time = DateTime.Now.TimeOfDay;
-                Parallel.Invoke(new ParallelOptions()
+                try
                 {
-                    TaskScheduler = ui,
-                    CancellationToken = CancellationToken.None,
-                    MaxDegreeOfParallelism = 1
-                }, () => { this.tB.Text += "Создан " + e.Name + " Время:" + DateTime.Now.ToString() + "\n"; });
-                //Task.Factory.StartNew(() => { this.tB.Text += "Создан " + e.Name +" Время:"+ DateTime.Now.ToString() + "\n"; }, CancellationToken.None, TaskCreationOptions.None, ui);
-                if (Parsing.Run(e.FullPath))
-                {
-                    //TimeSpan CurrentTime = DateTime.Now.TimeOfDay;
-                    var delta = 5000 - Math.Abs(( DateTime.Now.TimeOfDay-time).Milliseconds);
-                    await Task.Delay(delta);
-                    Parallel.Invoke(new ParallelOptions()
+                    var time = DateTime.Now.TimeOfDay;
+                    WorkWithTextBox(e, new Action(() => { this.tB.Text += "Создан " + e.Name + " Время:" + DateTime.Now.ToString() + "\n"; })); 
+                    //Парсинг
+                    if (Parsing.Run(e.FullPath, tamplate))
                     {
-                        TaskScheduler = ui,
-                        CancellationToken = CancellationToken.None,
-                        MaxDegreeOfParallelism = 1
-                    }, () => { this.tB.Text += "Удаление " + e.Name + " Время:" + DateTime.Now.ToString() + "\n"; });
-                    //Task.Factory.StartNew(() => { this.tB.Text += "Удаление " + e.Name + " Время:" + DateTime.Now.ToString() + "\n"; }, CancellationToken.None, TaskCreationOptions.None, ui);
-                    if (File.Exists(e.FullPath))
+                        //Время удаления в зависимости от время создания
+                        var delta = 5000 - Math.Abs((DateTime.Now.TimeOfDay - time).Milliseconds);
+                        await Task.Delay(delta);
+                        //Удаление
+                        if (File.Exists(e.FullPath))
+                        {
+                            File.Delete(e.FullPath);
+                            WorkWithTextBox(e, new Action(() => { this.tB.Text += "Удалён " + e.Name + " Время:" + DateTime.Now.ToString() + "\n"; }));
+                        }
+                    }
+                    else
                     {
-                        File.Delete(e.FullPath);
+                        //Переименование и перемещение
+                        if (File.Exists(e.FullPath))
+                        {
+                            var newFullPath = PatchStorage + "\\" + System.Guid.NewGuid().ToString() + new FileInfo(e.FullPath).Extension;
+                            File.Move(e.FullPath, newFullPath);
+                            WorkWithTextBox(e, new Action(() => { this.tB.Text += "Файл " + e.Name+" переименован в " + new FileInfo(newFullPath).Name + " Время:" + DateTime.Now.ToString() + "\n"; }));
+                        }
                     }
                 }
-                else
+                //Задача не положит приложение исключением
+                catch
                 {
 
-                }
+                }                
             });
-            
+        }
 
-     
-            //Dispatcher.Invoke(() => this.tB.Text +="Создан " + e.Name + "\n");
-            //Dispatcher.BeginInvoke(new Action(() => tB.Text += "Создан " + e.Name + "\n"));
-
-            //Parallel.Invoke(() => this.tB.Text += "Создан " + e.Name + "\n");
-            //this.tB.Text += "Изменён \n";
-            //System.Threading.Tasks.Task.Run(() => tB.Text += "Создан " + e.Name + "\n");
-
-            //new Task(() =>
-            //{
-            //    this.tB.Text += "Создан " + e.Name + "\n";
-            //}).RunSynchronously();
-
-            //lock (locker)
-            //{
-            //    this.tB.Text += "Создан " + e.Name + "\n";
-            //}
-
+        /// <summary>
+        /// Работа с TextBox  в потоке UI
+        /// </summary>
+        private void WorkWithTextBox(FileSystemEventArgs e,Action action)
+        {
+            Parallel.Invoke(new ParallelOptions()
+            {
+                TaskScheduler = ui,
+                CancellationToken = CancellationToken.None,
+                MaxDegreeOfParallelism = 1
+            }, action);
         }
     }
 }

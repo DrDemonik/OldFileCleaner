@@ -8,7 +8,7 @@
         Title="MainWindow" Height="450" Width="800">
     <Grid Background="#FFFDDCA1">
         <Button x:Name="bCreateFiles" Content="Создать файлы" HorizontalAlignment="Left" Height="27" Margin="30,30,0,0" VerticalAlignment="Top" Width="121" Click="BCreateFiles_Click"/>
-        <TextBox x:Name="tB" HorizontalAlignment="Left" Height="276" Margin="31,86,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="534"/>
+        <TextBox x:Name="tB" Margin="30,73,30,29" TextWrapping="Wrap"/>
 
     </Grid>
 </Window>

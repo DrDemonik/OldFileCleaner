@@ -9,17 +9,19 @@ namespace OldFileCleaner
 {
     static public class Parsing
     {
-        static public bool Run(string path)
+        /// <summary>
+        /// Парсинг и сферка содержимого с шаблоном
+        /// </summary>
+        static public bool Run(string path, string template)
         {
             string text;
             using (FileStream file = new FileStream(path, FileMode.Open))
             {
                 using (StreamReader reader = new StreamReader(file, Encoding.Default))
                 {
-                    //text = reader.ReadToEndAsync
                     text = reader.ReadToEnd();
                 }
-                return text.Contains("A\nB\nC");
+                return text.Contains(template);
             }
         }
     }
